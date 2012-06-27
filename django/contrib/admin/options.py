@@ -829,14 +829,14 @@ class ModelAdmin(BaseModelAdmin):
         elif "_saveasnew" in request.POST:
             msg = _('The %(name)s "%(obj)s" was added successfully. You may edit it again below.') % {'name': force_unicode(verbose_name), 'obj': obj}
             self.message_user(request, msg)
-            return HttpResponseRedirect(reverse('admin:%s_%s_change' %
-                                        (opts.app_label, module_name),
+            return HttpResponseRedirect(reverse('%s:%s_%s_change' %
+                                        (self.admin_site.name, opts.app_label, module_name),
                                         args=(pk_value,),
                                         current_app=self.admin_site.name))
         elif "_addanother" in request.POST:
             self.message_user(request, msg + ' ' + (_("You may add another %s below.") % force_unicode(verbose_name)))
-            return HttpResponseRedirect(reverse('admin:%s_%s_add' %
-                                        (opts.app_label, module_name),
+            return HttpResponseRedirect(reverse('%s:%s_%s_add' %
+                                        (self.admin_site.name, opts.app_label, module_name),
                                         current_app=self.admin_site.name))
         else:
             self.message_user(request, msg)
@@ -844,11 +844,11 @@ class ModelAdmin(BaseModelAdmin):
             # redirect to the change-list page for this object. Otherwise,
             # redirect to the admin index.
             if self.has_change_permission(request, None):
-                post_url = reverse('admin:%s_%s_changelist' %
-                                   (opts.app_label, module_name),
+                post_url = reverse('%s:%s_%s_changelist' %
+                                   (self.admin_site.name, opts.app_label, module_name),
                                    current_app=self.admin_site.name)
             else:
-                post_url = reverse('admin:index',
+                post_url = reverse('%s:index' % self.admin_site.name,
                                    current_app=self.admin_site.name)
             return HttpResponseRedirect(post_url)
 
@@ -1023,8 +1023,8 @@ class ModelAdmin(BaseModelAdmin):
             raise Http404(_('%(name)s object with primary key %(key)r does not exist.') % {'name': force_unicode(opts.verbose_name), 'key': escape(object_id)})
 
         if request.method == 'POST' and "_saveasnew" in request.POST:
-            return self.add_view(request, form_url=reverse('admin:%s_%s_add' %
-                                    (opts.app_label, opts.module_name),
+            return self.add_view(request, form_url=reverse('%s:%s_%s_add' %
+                                    (self.admin_site.name, opts.app_label, opts.module_name),
                                     current_app=self.admin_site.name))
 
         ModelForm = self.get_form(request, obj)
@@ -1283,10 +1283,10 @@ class ModelAdmin(BaseModelAdmin):
             self.message_user(request, _('The %(name)s "%(obj)s" was deleted successfully.') % {'name': force_unicode(opts.verbose_name), 'obj': force_unicode(obj_display)})
 
             if not self.has_change_permission(request, None):
-                return HttpResponseRedirect(reverse('admin:index',
+                return HttpResponseRedirect(reverse('%s:index' % self.admin_site.name,
                                                     current_app=self.admin_site.name))
-            return HttpResponseRedirect(reverse('admin:%s_%s_changelist' %
-                                        (opts.app_label, opts.module_name),
+            return HttpResponseRedirect(reverse('%s:%s_%s_changelist' %
+                                        (self.admin_site.name, opts.app_label, opts.module_name),
                                         current_app=self.admin_site.name))
 
         object_name = force_unicode(opts.verbose_name)

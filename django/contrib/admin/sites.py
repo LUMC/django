@@ -188,9 +188,9 @@ class AdminSite(object):
         """
         def inner(request, *args, **kwargs):
             if not self.has_permission(request):
-                if request.path == reverse('admin:logout',
+                if request.path == reverse('%s:logout' % self.name,
                                            current_app=self.name):
-                    index_path = reverse('admin:index', current_app=self.name)
+                    index_path = reverse('%s:index' % self.name, current_app=self.name)
                     return HttpResponseRedirect(index_path)
                 return self.login(request)
             return view(request, *args, **kwargs)
@@ -254,7 +254,7 @@ class AdminSite(object):
         Handles the "change password" task -- both form display and validation.
         """
         from django.contrib.auth.views import password_change
-        url = reverse('admin:password_change_done', current_app=self.name)
+        url = reverse('%s:password_change_done' % self.name, current_app=self.name)
         defaults = {
             'current_app': self.name,
             'post_change_redirect': url
@@ -343,19 +343,19 @@ class AdminSite(object):
                 # Check whether user has any perm for this module.
                 # If so, add the module to the model_list.
                 if True in perms.values():
-                    info = (app_label, model._meta.module_name)
+                    info = (self.name, app_label, model._meta.module_name)
                     model_dict = {
                         'name': capfirst(model._meta.verbose_name_plural),
                         'perms': perms,
                     }
                     if perms.get('change', False):
                         try:
-                            model_dict['admin_url'] = reverse('admin:%s_%s_changelist' % info, current_app=self.name)
+                            model_dict['admin_url'] = reverse('%s:%s_%s_changelist' % info, current_app=self.name)
                         except NoReverseMatch:
                             pass
                     if perms.get('add', False):
                         try:
-                            model_dict['add_url'] = reverse('admin:%s_%s_add' % info, current_app=self.name)
+                            model_dict['add_url'] = reverse('%s:%s_%s_add' % info, current_app=self.name)
                         except NoReverseMatch:
                             pass
                     if app_label in app_dict:
@@ -363,7 +363,7 @@ class AdminSite(object):
                     else:
                         app_dict[app_label] = {
                             'name': app_label.title(),
-                            'app_url': reverse('admin:app_list', kwargs={'app_label': app_label}, current_app=self.name),
+                            'app_url': reverse('%s:app_list' % self.name, kwargs={'app_label': app_label}, current_app=self.name),
                             'has_module_perms': has_module_perms,
                             'models': [model_dict],
                         }
@@ -397,19 +397,19 @@ class AdminSite(object):
                     # Check whether user has any perm for this module.
                     # If so, add the module to the model_list.
                     if True in perms.values():
-                        info = (app_label, model._meta.module_name)
+                        info = (self.name, app_label, model._meta.module_name)
                         model_dict = {
                             'name': capfirst(model._meta.verbose_name_plural),
                             'perms': perms,
                         }
                         if perms.get('change', False):
                             try:
-                                model_dict['admin_url'] = reverse('admin:%s_%s_changelist' % info, current_app=self.name)
+                                model_dict['admin_url'] = reverse('%s:%s_%s_changelist' % info, current_app=self.name)
                             except NoReverseMatch:
                                 pass
                         if perms.get('add', False):
                             try:
-                                model_dict['add_url'] = reverse('admin:%s_%s_add' % info, current_app=self.name)
+                                model_dict['add_url'] = reverse('%s:%s_%s_add' % info, current_app=self.name)
                             except NoReverseMatch:
                                 pass
                         if app_dict:
