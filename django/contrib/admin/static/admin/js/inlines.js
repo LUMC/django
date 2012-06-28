@@ -33,6 +33,55 @@
 		var totalForms = $("#id_" + options.prefix + "-TOTAL_FORMS").attr("autocomplete", "off");
 		var nextIndex = parseInt(totalForms.val());
 		var maxForms = $("#id_" + options.prefix + "-MAX_NUM_FORMS").attr("autocomplete", "off");
+        var addDeleteLink = function(row) {
+            if (row.is("tr")) {
+                // If the forms are laid out in table rows, insert
+                // the remove button into the last table cell:
+                row.children(":last").append('<div><a class="' + options.deleteCssClass +'" href="javascript:void(0)">' + options.deleteText + "</a></div>");
+            } else if (row.is("ul") || row.is("ol")) {
+                // If they're laid out as an ordered/unordered list,
+                // insert an <li> after the last list item:
+                row.append('<li><a class="' + options.deleteCssClass +'" href="javascript:void(0)">' + options.deleteText + "</a></li>");
+            } else {
+                // Otherwise, just insert the remove button as the
+                // last child element of the form's container:
+                row.children(":first").append('<span><a class="' + options.deleteCssClass + '" href="javascript:void(0)">' + options.deleteText + "</a></span>");
+            }
+
+            // The delete button of each row triggers a bunch of other things
+            row.find("a." + options.deleteCssClass).click(function() {
+                // Remove the parent form containing this button:
+                var row = $(this).parents("." + options.formCssClass);
+                var previous_row = row.prev('tr');
+                row.remove();
+                nextIndex -= 1;
+                if (!previous_row.hasClass('form-row')) {
+                    previous_row.remove();
+                }
+
+                // If a post-delete callback was provided, call it with the deleted form:
+                if (options.removed) {
+                    options.removed(row);
+                }
+                // Update the TOTAL_FORMS form count.
+                var forms = $("." + options.formCssClass);
+                $("#id_" + options.prefix + "-TOTAL_FORMS").val(forms.length);
+                // Show add button again once we drop below max
+                if ((maxForms.val() == '') || (maxForms.val()-forms.length) > 0) {
+                    addButton.parent().show();
+                }
+                // Also, update names and ids for all remaining form controls
+                // so they remain in sequence:
+                for (var i=0, formCount=forms.length; i<formCount; i++)
+                {
+                    updateElementIndex($(forms).get(i), options.prefix, i);
+                    $(forms.get(i)).find("*").each(function() {
+                        updateElementIndex(this, options.prefix, i);
+                    });
+                }
+                return false;
+            });
+        };
 		// only show the add button if we are allowed to add more items,
         // note that max_num = None translates to a blank string.
 		var showAddButton = maxForms.val() == '' || (maxForms.val()-totalForms.val()) > 0;
@@ -59,19 +108,7 @@
 				row.removeClass(options.emptyCssClass)
 				    .addClass(options.formCssClass)
 				    .attr("id", options.prefix + "-" + nextIndex);
-				if (row.is("tr")) {
-					// If the forms are laid out in table rows, insert
-					// the remove button into the last table cell:
-					row.children(":last").append('<div><a class="' + options.deleteCssClass +'" href="javascript:void(0)">' + options.deleteText + "</a></div>");
-				} else if (row.is("ul") || row.is("ol")) {
-					// If they're laid out as an ordered/unordered list,
-					// insert an <li> after the last list item:
-					row.append('<li><a class="' + options.deleteCssClass +'" href="javascript:void(0)">' + options.deleteText + "</a></li>");
-				} else {
-					// Otherwise, just insert the remove button as the
-					// last child element of the form's container:
-					row.children(":first").append('<span><a class="' + options.deleteCssClass + '" href="javascript:void(0)">' + options.deleteText + "</a></span>");
-				}
+
 				row.find("*").each(function() {
 					updateElementIndex(this, options.prefix, totalForms.val());
 				});
@@ -84,34 +121,6 @@
 				if ((maxForms.val() != '') && (maxForms.val()-totalForms.val()) <= 0) {
 					addButton.parent().hide();
 				}
-				// The delete button of each row triggers a bunch of other things
-				row.find("a." + options.deleteCssClass).click(function() {
-					// Remove the parent form containing this button:
-					var row = $(this).parents("." + options.formCssClass);
-					row.remove();
-					nextIndex -= 1;
-					// If a post-delete callback was provided, call it with the deleted form:
-					if (options.removed) {
-						options.removed(row);
-					}
-					// Update the TOTAL_FORMS form count.
-					var forms = $("." + options.formCssClass);
-					$("#id_" + options.prefix + "-TOTAL_FORMS").val(forms.length);
-					// Show add button again once we drop below max
-					if ((maxForms.val() == '') || (maxForms.val()-forms.length) > 0) {
-						addButton.parent().show();
-					}
-					// Also, update names and ids for all remaining form controls
-					// so they remain in sequence:
-					for (var i=0, formCount=forms.length; i<formCount; i++)
-					{
-						updateElementIndex($(forms).get(i), options.prefix, i);
-						$(forms.get(i)).find("*").each(function() {
-							updateElementIndex(this, options.prefix, i);
-						});
-					}
-					return false;
-				});
 				// If a post-add callback was supplied, call it with the added form:
 				if (options.added) {
 					options.added(row);
@@ -119,6 +128,14 @@
 				return false;
 			});
 		}
+
+        // check if there's the delete link missing for unsaved rows due to validation errors.
+        $(this).each(function(){
+            if ($(this).hasClass('form-row') && !$(this).hasClass('has_original') ){
+                addDeleteLink($(this));
+            }
+        });
+
 		return this;
 	}
 	/* Setup plugin defaults */
