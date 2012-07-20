@@ -465,19 +465,28 @@ class ModelAdmin(BaseModelAdmin):
         from django.contrib.admin.views.main import ChangeList
         return ChangeList
 
-    def get_object(self, request, object_id):
+    def get_object(self, request, object_id, change=True, raise_error=False):
         """
-        Returns an instance matching the primary key provided. ``None``  is
-        returned if no match is found (or the object_id failed validation
+        Returns an instance matching the primary key provided.
+        If raise_error is False, ``None`` is returned if no match is found (or the object_id failed validation
         against the primary key field).
+        Otherwise, raise PermissionDenied if request does not have permission for the given action, and raise 404
+        if the object is not found.
         """
         queryset = self.queryset(request)
         model = queryset.model
         try:
             object_id = model._meta.pk.to_python(object_id)
-            return queryset.get(pk=object_id)
+            obj = queryset.get(pk=object_id)
+            if raise_error and ((change and not self.has_change_permission(request, obj)) or
+                                (not change and not self.has_delete_permission(request, obj))):
+                raise PermissionDenied
+            return obj
         except (model.DoesNotExist, ValidationError):
-            return None
+            if raise_error:
+                raise Http404(_('%(name)s object with primary key %(key)r does not exist.') %
+                              {'name': force_unicode(opts.verbose_name), 'key': escape(object_id)})
+
 
     def get_changelist_form(self, request, **kwargs):
         """
@@ -505,6 +514,22 @@ class ModelAdmin(BaseModelAdmin):
     def get_formsets(self, request, obj=None):
         for inline in self.get_inline_instances(request):
             yield inline.get_formset(request, obj)
+
+    def get_formset_instances(self, request, obj, inline_instances):
+        formsets = []
+        prefixes = {}
+        for FormSet, inline in zip(self.get_formsets(request, obj), inline_instances):
+            prefix = FormSet.get_default_prefix()
+            prefixes[prefix] = prefixes.get(prefix, 0) + 1
+            if prefixes[prefix] != 1 or not prefix:
+                prefix = "%s-%s" % (prefix, prefixes[prefix])
+            if request.method == 'POST':
+                formset = FormSet(request.POST, request.FILES,
+                                  instance=obj, prefix=prefix, queryset=inline.queryset(request))
+            else:
+                formset = FormSet(instance=obj, prefix=prefix, queryset=inline.queryset(request))
+            formsets.append(formset)
+        return formsets
 
     def get_paginator(self, request, queryset, per_page, orphans=0, allow_empty_first_page=True):
         return self.paginator(queryset, per_page, orphans, allow_empty_first_page)
@@ -667,7 +692,7 @@ class ModelAdmin(BaseModelAdmin):
         Construct a change message from a changed object.
         """
         change_message = []
-        if form.changed_data:
+        if form and form.changed_data:
             change_message.append(_('Changed %s.') % get_text_list(form.changed_data, _('and')))
 
         if formsets:
@@ -1014,13 +1039,7 @@ class ModelAdmin(BaseModelAdmin):
         model = self.model
         opts = model._meta
 
-        obj = self.get_object(request, unquote(object_id))
-
-        if not self.has_change_permission(request, obj):
-            raise PermissionDenied
-
-        if obj is None:
-            raise Http404(_('%(name)s object with primary key %(key)r does not exist.') % {'name': force_unicode(opts.verbose_name), 'key': escape(object_id)})
+        obj = self.get_object(request, unquote(object_id), raise_error=True)
 
         if request.method == 'POST' and "_saveasnew" in request.POST:
             return self.add_view(request, form_url=reverse('%s:%s_%s_add' %
@@ -1028,8 +1047,8 @@ class ModelAdmin(BaseModelAdmin):
                                     current_app=self.admin_site.name))
 
         ModelForm = self.get_form(request, obj)
-        formsets = []
         inline_instances = self.get_inline_instances(request)
+
         if request.method == 'POST':
             form = ModelForm(request.POST, request.FILES, instance=obj)
             if form.is_valid():
@@ -1038,17 +1057,8 @@ class ModelAdmin(BaseModelAdmin):
             else:
                 form_validated = False
                 new_object = obj
-            prefixes = {}
-            for FormSet, inline in zip(self.get_formsets(request, new_object), inline_instances):
-                prefix = FormSet.get_default_prefix()
-                prefixes[prefix] = prefixes.get(prefix, 0) + 1
-                if prefixes[prefix] != 1 or not prefix:
-                    prefix = "%s-%s" % (prefix, prefixes[prefix])
-                formset = FormSet(request.POST, request.FILES,
-                                  instance=new_object, prefix=prefix,
-                                  queryset=inline.queryset(request))
 
-                formsets.append(formset)
+            formsets = self.get_formset_instances(request, new_object, inline_instances)
 
             if all_valid(formsets) and form_validated:
                 self.save_model(request, new_object, form, True)
@@ -1059,15 +1069,7 @@ class ModelAdmin(BaseModelAdmin):
 
         else:
             form = ModelForm(instance=obj)
-            prefixes = {}
-            for FormSet, inline in zip(self.get_formsets(request, obj), inline_instances):
-                prefix = FormSet.get_default_prefix()
-                prefixes[prefix] = prefixes.get(prefix, 0) + 1
-                if prefixes[prefix] != 1 or not prefix:
-                    prefix = "%s-%s" % (prefix, prefixes[prefix])
-                formset = FormSet(instance=obj, prefix=prefix,
-                                  queryset=inline.queryset(request))
-                formsets.append(formset)
+            formsets = self.get_formset_instances(request, obj, inline_instances)
 
         adminForm = helpers.AdminForm(form, self.get_fieldsets(request, obj),
             self.get_prepopulated_fields(request, obj),
@@ -1258,13 +1260,7 @@ class ModelAdmin(BaseModelAdmin):
         opts = self.model._meta
         app_label = opts.app_label
 
-        obj = self.get_object(request, unquote(object_id))
-
-        if not self.has_delete_permission(request, obj):
-            raise PermissionDenied
-
-        if obj is None:
-            raise Http404(_('%(name)s object with primary key %(key)r does not exist.') % {'name': force_unicode(opts.verbose_name), 'key': escape(object_id)})
+        obj = self.get_object(request, unquote(object_id), delete=True, raise_error=True)
 
         using = router.db_for_write(self.model)
 
@@ -1312,6 +1308,74 @@ class ModelAdmin(BaseModelAdmin):
             "admin/%s/%s/delete_confirmation.html" % (app_label, opts.object_name.lower()),
             "admin/%s/delete_confirmation.html" % app_label,
             "admin/delete_confirmation.html"
+        ], context, current_app=self.admin_site.name)
+
+
+    @csrf_protect_m
+    @transaction.commit_on_success
+    def inline_view(self, request, object_id, template=None, inlines=[], extra_context={}):
+        """
+        The inline portion of the 'change' admin view for this model, based on the change_view method.
+        This view can be quite handy when the change form is getting really long due to many related inline forms.
+        Use this view help break up a long change form into multiple forms.
+        """
+        model = self.model
+        opts = model._meta
+        obj = self.get_object(request, unquote(object_id), raise_error=True)
+        form = self.get_form(request, obj=obj)(instance=obj)
+        inline_instances = self.get_inline_instances(request, inlines=inlines)
+        formsets = self.get_formset_instances(request, obj, inline_instances)
+
+        if request.method == 'POST':
+            form.is_bound = True # fake a bound form so AdminErrorList can do its job.
+            if all_valid(formsets):
+                for formset in formsets:
+                    self.save_formset(request, form, formset, change=True)
+                change_message = self.construct_change_message(request, None, formsets)
+                self.log_change(request, obj, change_message)
+                return self.response_change(request, obj)
+
+        media = self.media
+        inline_admin_formsets = []
+        titles = []
+
+        for inline, formset in zip(inline_instances, formsets):
+            fieldsets = list(inline.get_fieldsets(request, obj))
+            readonly = list(inline.get_readonly_fields(request, obj))
+            prepopulated = dict(inline.get_prepopulated_fields(request, obj))
+            inline_admin_formset = helpers.InlineAdminFormSet(inline, formset,
+                                                              fieldsets, prepopulated, readonly, model_admin=self)
+            inline_admin_formsets.append(inline_admin_formset)
+            media = media + inline_admin_formset.media
+            titles.append(inline.verbose_name_plural)
+
+        context = {
+            'title': _("Change %s\'s ") % force_unicode(opts.verbose_name) + u', '.join(titles),
+            'object_id': object_id,
+            'original': obj,
+            'is_popup': "_popup" in request.REQUEST,
+            'media': media,
+            'inline_admin_formsets': inline_admin_formsets,
+            'app_label': opts.app_label,
+            'add': False,
+            'change': True,
+            'errors': helpers.AdminErrorList(form, formsets),
+            'has_add_permission': self.has_add_permission(request),
+            'has_change_permission': self.has_change_permission(request, obj),
+            'has_delete_permission': self.has_delete_permission(request, obj),
+            'has_file_field': True,
+            'form_url': '',
+            'opts': opts,
+            'content_type_id': ContentType.objects.get_for_model(self.model).id,
+            'save_as': self.save_as,
+            'save_on_top': self.save_on_top,
+            }
+        context.update(extra_context or {})
+
+        return TemplateResponse(request, template or [
+            "admin/%s/%s/change_form.html" % (opts.app_label, opts.object_name.lower()),
+            "admin/%s/change_form.html" % opts.app_label,
+            "admin/change_form.html"
         ], context, current_app=self.admin_site.name)
 
     def history_view(self, request, object_id, extra_context=None):
