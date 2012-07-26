@@ -485,7 +485,7 @@ class ModelAdmin(BaseModelAdmin):
         except (model.DoesNotExist, ValidationError):
             if raise_error:
                 raise Http404(_('%(name)s object with primary key %(key)r does not exist.') %
-                              {'name': force_unicode(opts.verbose_name), 'key': escape(object_id)})
+                              {'name': force_unicode(model._meta.verbose_name), 'key': escape(object_id)})
 
 
     def get_changelist_form(self, request, **kwargs):
