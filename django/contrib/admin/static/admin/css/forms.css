@@ -353,6 +353,10 @@ body.popup .submit-row {
     outline: 0; /* Remove dotted border around link */
 }
 
+div.inline-delete {
+    display: inline;
+}
+
 .empty-form {
     display: none;
 }
