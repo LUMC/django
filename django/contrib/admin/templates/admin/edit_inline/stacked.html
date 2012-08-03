@@ -15,6 +15,7 @@
   {% endfor %}
   {% if inline_admin_form.has_auto_field %}{{ inline_admin_form.pk_field.field }}{% endif %}
   {{ inline_admin_form.fk_field.field }}
+  {% block form_footer %}{% endblock %}
 </div>{% endfor %}
 </div>
 
