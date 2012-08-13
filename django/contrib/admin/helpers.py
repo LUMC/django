@@ -113,6 +113,7 @@ class Fieldline(object):
 
 class AdminField(object):
     def __init__(self, form, field, is_first):
+        self.form = form
         self.field = form[field] # A django.forms.BoundField instance
         self.is_first = is_first # Whether this field is first on the line
         self.is_checkbox = isinstance(self.field.field.widget, forms.CheckboxInput)
@@ -133,6 +134,21 @@ class AdminField(object):
 
     def errors(self):
         return mark_safe(self.field.errors.as_ul())
+
+    def contents(self):
+        from django.contrib.admin.templatetags.admin_list import _boolean_icon
+        from django.forms import BooleanField
+        from django.contrib.admin.views.main import EMPTY_CHANGELIST_VALUE
+        
+        value = getattr(self.form.instance, self.field.name)
+        if value is None:
+            result_repr = EMPTY_CHANGELIST_VALUE
+        elif isinstance(self.field.field, BooleanField):
+            result_repr = _boolean_icon(value)
+        else:
+            result_repr = smart_unicode(value)
+
+        return conditional_escape(result_repr)
 
 class AdminReadonlyField(object):
     def __init__(self, form, field, is_first, model_admin=None):
