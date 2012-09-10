@@ -1260,7 +1260,7 @@ class ModelAdmin(BaseModelAdmin):
         opts = self.model._meta
         app_label = opts.app_label
 
-        obj = self.get_object(request, unquote(object_id), delete=True, raise_error=True)
+        obj = self.get_object(request, unquote(object_id), change=False, raise_error=True)
 
         using = router.db_for_write(self.model)
 
