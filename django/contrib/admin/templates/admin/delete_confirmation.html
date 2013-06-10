@@ -14,6 +14,7 @@
 {% endblock %}
 
 {% block content %}
+<div id="content-main">
 {% if perms_lacking or protected %}
     {% if perms_lacking %}
         <p>{% blocktrans with escaped_object=object %}Deleting the {{ object_name }} '{{ escaped_object }}' would result in deleting related objects, but your account doesn't have permission to delete the following types of objects:{% endblocktrans %}</p>
@@ -37,8 +38,10 @@
     <form action="" method="post">{% csrf_token %}
     <div>
     <input type="hidden" name="post" value="yes" />
+    {% if changelist_filters %}<input type="hidden" name="_changelist_filters" value="{{ changelist_filters }}" />{% endif %}
     <input type="submit" value="{% trans "Yes, I'm sure" %}" />
     </div>
     </form>
 {% endif %}
+</div>
 {% endblock %}

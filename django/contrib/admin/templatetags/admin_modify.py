@@ -38,7 +38,8 @@ def submit_row(context):
                             not is_popup and (not save_as or context['add']),
         'show_save_and_continue': not is_popup and context['has_change_permission'],
         'is_popup': is_popup,
-        'show_save': True
+        'show_save': True,
+        'changelist_filters': context['changelist_filters']
     }
 
 @register.filter
