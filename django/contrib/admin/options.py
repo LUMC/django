@@ -9,6 +9,7 @@ from django.contrib.admin import widgets, helpers
 from django.contrib.admin.util import unquote, flatten_fieldsets, get_deleted_objects, model_format_dict
 from django.contrib.admin.templatetags.admin_static import static
 from django.contrib import messages
+from django.utils.http import is_safe_url
 from django.views.decorators.csrf import csrf_protect
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
@@ -28,6 +29,7 @@ from django.utils.text import capfirst, get_text_list
 from django.utils.translation import ugettext as _
 from django.utils.translation import ungettext
 from django.utils.encoding import force_unicode
+import urlparse
 
 HORIZONTAL, VERTICAL = 1, 2
 # returns the <ul> class for a given radio_admin field
@@ -872,6 +874,10 @@ class ModelAdmin(BaseModelAdmin):
                 post_url = reverse('%s:%s_%s_changelist' %
                                    (self.admin_site.name, opts.app_label, module_name),
                                    current_app=self.admin_site.name)
+                changelist_filters = request.POST.get('_changelist_filters')
+                if changelist_filters:
+                    post_url = '%s?%s' % (post_url, changelist_filters)
+
             else:
                 post_url = reverse('%s:index' % self.admin_site.name,
                                    current_app=self.admin_site.name)
@@ -1048,6 +1054,7 @@ class ModelAdmin(BaseModelAdmin):
 
         ModelForm = self.get_form(request, obj)
         inline_instances = self.get_inline_instances(request)
+        changelist_filters = None
 
         if request.method == 'POST':
             form = ModelForm(request.POST, request.FILES, instance=obj)
@@ -1060,6 +1067,9 @@ class ModelAdmin(BaseModelAdmin):
 
             formsets = self.get_formset_instances(request, new_object, inline_instances)
 
+            # use the filter from previous view.
+            changelist_filters = request.POST.get('_changelist_filters')
+
             if all_valid(formsets) and form_validated:
                 self.save_model(request, new_object, form, True)
                 self.save_related(request, form, formsets, True)
@@ -1070,6 +1080,15 @@ class ModelAdmin(BaseModelAdmin):
         else:
             form = ModelForm(instance=obj)
             formsets = self.get_formset_instances(request, obj, inline_instances)
+
+            referer = request.META.get('HTTP_REFERER')
+            if referer:
+                referer = urlparse.urlparse(referer)
+                changelist_url = reverse('%s:%s_%s_changelist' %
+                                         (self.admin_site.name, opts.app_label, opts.module_name),
+                                         current_app=self.admin_site.name)
+                if is_safe_url(url=referer.geturl(), host=request.get_host()) and referer.path.startswith(changelist_url):
+                    changelist_filters = referer.query
 
         adminForm = helpers.AdminForm(form, self.get_fieldsets(request, obj),
             self.get_prepopulated_fields(request, obj),
@@ -1097,6 +1116,7 @@ class ModelAdmin(BaseModelAdmin):
             'inline_admin_formsets': inline_admin_formsets,
             'errors': helpers.AdminErrorList(form, formsets),
             'app_label': opts.app_label,
+            'changelist_filters': changelist_filters
         }
         context.update(extra_context or {})
         return self.render_change_form(request, context, change=True, obj=obj, form_url=form_url)
@@ -1278,12 +1298,20 @@ class ModelAdmin(BaseModelAdmin):
 
             self.message_user(request, _('The %(name)s "%(obj)s" was deleted successfully.') % {'name': force_unicode(opts.verbose_name), 'obj': force_unicode(obj_display)})
 
+            changelist_url = reverse('%s:%s_%s_changelist' %
+                                     (self.admin_site.name, opts.app_label, opts.module_name),
+                                     current_app=self.admin_site.name)
+
+            changelist_filters = request.POST.get('_changelist_filters')
+            if changelist_filters:
+                changelist_url = '%s?%s' % (changelist_url, changelist_filters)
+
             if not self.has_change_permission(request, None):
                 return HttpResponseRedirect(reverse('%s:index' % self.admin_site.name,
                                                     current_app=self.admin_site.name))
-            return HttpResponseRedirect(reverse('%s:%s_%s_changelist' %
-                                        (self.admin_site.name, opts.app_label, opts.module_name),
-                                        current_app=self.admin_site.name))
+            return HttpResponseRedirect(changelist_url)
+        else:
+            changelist_filters = request.GET.get('_changelist_filters')
 
         object_name = force_unicode(opts.verbose_name)
 
@@ -1301,6 +1329,7 @@ class ModelAdmin(BaseModelAdmin):
             "protected": protected,
             "opts": opts,
             "app_label": app_label,
+            "changelist_filters": changelist_filters,
         }
         context.update(extra_context or {})
 
