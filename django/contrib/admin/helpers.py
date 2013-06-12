@@ -203,6 +203,10 @@ class AdminReadonlyField(object):
             else:
                 if value is None:
                     result_repr = EMPTY_CHANGELIST_VALUE
+                    try:
+                        result_repr = display_for_field(self.form.initial[field], f)
+                    except KeyError:
+                        pass
                 elif isinstance(f.rel, ManyToManyRel):
                     result_repr = ", ".join(map(unicode, value.all()))
                 else:
