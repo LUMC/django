@@ -1,5 +1,6 @@
 import urllib
 
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.mail import send_mail
 from django.db import models
@@ -261,6 +262,14 @@ class User(models.Model):
         verbose_name_plural = _('users')
 
     def __unicode__(self):
+        """
+        Returns username by default. The behavior can be overwritten by the
+        USER_PRETTY_DISPLAY_FUNC setting.
+
+        :return: unicode representation of the User.
+        """
+        if callable(settings.USER_PRETTY_DISPLAY_FUNC):
+            return settings.USER_PRETTY_DISPLAY_FUNC(self) or self.username
         return self.username
 
     def natural_key(self):
