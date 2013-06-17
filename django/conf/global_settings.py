@@ -433,6 +433,12 @@ WSGI_APPLICATION = None
 # you may be opening yourself up to a security risk.
 SECURE_PROXY_SSL_HEADER = None
 
+# A function to override User model's default unicode representation.
+# The value must be a callable function. Override will not take effect if
+# the function returns an empty string.
+# Example: `lambda user: user.last_name`
+USER_PRETTY_DISPLAY_FUNC = None
+
 ##############
 # MIDDLEWARE #
 ##############
