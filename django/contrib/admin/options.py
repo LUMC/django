@@ -1034,6 +1034,7 @@ class ModelAdmin(BaseModelAdmin):
             'inline_admin_formsets': inline_admin_formsets,
             'errors': helpers.AdminErrorList(form, formsets),
             'app_label': opts.app_label,
+            'changelist_filters': None
         }
         context.update(extra_context or {})
         return self.render_change_form(request, context, form_url=form_url, add=True)
